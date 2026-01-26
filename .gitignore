@@ -1,0 +1,18 @@
+# Configuration with credentials (never commit)
+config.php
+
+# PHP
+vendor/
+composer.lock
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
