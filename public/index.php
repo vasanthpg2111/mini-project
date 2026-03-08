@@ -1,93 +1,140 @@
 <?php
 
-require_once __DIR__ . '/../lib/db.php';
+require_once __DIR__ . '/../lib/auth.php';
 require_once __DIR__ . '/_layout.php';
 
+start_app_session();
 $pdo = db();
 $subjects = $pdo->query("SELECT id, name FROM subjects WHERE is_active = 1 ORDER BY name")->fetchAll();
 $faculty = $pdo->query("SELECT id, name, department FROM faculty WHERE is_active = 1 ORDER BY name")->fetchAll();
 
 $errors = [];
 $ok = false;
+$currentStudent = current_student();
 
 function post(string $k): string
 {
     return isset($_POST[$k]) ? trim((string)$_POST[$k]) : '';
 }
 
+function student_prefill(?array $student, string $field, string $postKey): string
+{
+    $fromPost = post($postKey);
+    if ($fromPost !== '') {
+        return $fromPost;
+    }
+
+    if (!$student) {
+        return '';
+    }
+
+    if ($field === 'name') {
+        return (string)($student['name'] ?? '');
+    }
+    if ($field === 'student_id') {
+        return (string)($student['student_id'] ?? '');
+    }
+    if ($field === 'email') {
+        return (string)($student['email'] ?? '');
+    }
+    if ($field === 'department') {
+        return (string)($student['department'] ?? '');
+    }
+    if ($field === 'year_of_study') {
+        return (string)($student['year_of_study'] ?? '');
+    }
+
+    return '';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $student_name = post('student_name');
-    $student_id = post('student_id');
-    $student_email = post('student_email');
-    $department = post('department');
-    $year_of_study = post('year_of_study');
-    $target_type = post('target_type'); // subject|faculty
-    $subject_id = post('subject_id');
-    $faculty_id = post('faculty_id');
-    $rating = (int)post('rating');
-    $comments = post('comments');
+    if (!is_student_logged_in()) {
+        $errors[] = 'Please log in as a student before submitting feedback.';
+    } else {
+        $student_name = post('student_name') !== '' ? post('student_name') : student_prefill($currentStudent, 'name', 'student_name');
+        $student_id = post('student_id') !== '' ? post('student_id') : student_prefill($currentStudent, 'student_id', 'student_id');
+        $student_email = post('student_email') !== '' ? post('student_email') : student_prefill($currentStudent, 'email', 'student_email');
+        $department = post('department') !== '' ? post('department') : student_prefill($currentStudent, 'department', 'department');
+        $year_of_study = post('year_of_study') !== '' ? post('year_of_study') : student_prefill($currentStudent, 'year_of_study', 'year_of_study');
+        $target_type = post('target_type'); // subject|faculty
+        $subject_id = post('subject_id');
+        $faculty_id = post('faculty_id');
+        $rating = (int)post('rating');
+        $comments = post('comments');
 
-    if ($student_name === '' || mb_strlen($student_name) > 120) {
-        $errors[] = 'Please enter your name (max 120 characters).';
-    }
-    if ($student_id === '' || mb_strlen($student_id) > 40) {
-        $errors[] = 'Please enter your student ID (max 40 characters).';
-    }
-    if ($student_email !== '' && (!filter_var($student_email, FILTER_VALIDATE_EMAIL) || mb_strlen($student_email) > 190)) {
-        $errors[] = 'Please enter a valid email address.';
-    }
-    if (!in_array($target_type, ['subject', 'faculty'], true)) {
-        $errors[] = 'Please choose whether you are reviewing a subject or a faculty member.';
-    }
-    if ($rating < 1 || $rating > 5) {
-        $errors[] = 'Please give a rating between 1 and 5.';
-    }
-
-    $subject_id_db = null;
-    $faculty_id_db = null;
-    if ($target_type === 'subject') {
-        if ($subject_id === '' || !ctype_digit($subject_id)) {
-            $errors[] = 'Please select a subject.';
-        } else {
-            $subject_id_db = (int)$subject_id;
+        if ($student_name === '' || mb_strlen($student_name) > 120) {
+            $errors[] = 'Please enter your name (max 120 characters).';
         }
-    } elseif ($target_type === 'faculty') {
-        if ($faculty_id === '' || !ctype_digit($faculty_id)) {
-            $errors[] = 'Please select a faculty member.';
-        } else {
-            $faculty_id_db = (int)$faculty_id;
+        if ($student_id === '' || mb_strlen($student_id) > 40) {
+            $errors[] = 'Please enter your student ID (max 40 characters).';
         }
-    }
+        if ($student_email !== '' && (!filter_var($student_email, FILTER_VALIDATE_EMAIL) || mb_strlen($student_email) > 190)) {
+            $errors[] = 'Please enter a valid email address.';
+        }
+        if (!in_array($target_type, ['subject', 'faculty'], true)) {
+            $errors[] = 'Please choose whether you are reviewing a subject or a faculty member.';
+        }
+        if ($rating < 1 || $rating > 5) {
+            $errors[] = 'Please give a rating between 1 and 5.';
+        }
 
-    if (!$errors) {
-        $stmt = $pdo->prepare(
-            'INSERT INTO feedback
-              (student_name, student_id, student_email, department, year_of_study, target_type, subject_id, faculty_id, rating, comments)
-             VALUES
-              (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        );
-        $stmt->execute([
-            $student_name,
-            $student_id,
-            $student_email !== '' ? $student_email : null,
-            $department !== '' ? $department : null,
-            $year_of_study !== '' ? $year_of_study : null,
-            $target_type,
-            $subject_id_db,
-            $faculty_id_db,
-            $rating,
-            $comments !== '' ? $comments : null,
-        ]);
-        $ok = true;
+        $subject_id_db = null;
+        $faculty_id_db = null;
+        if ($target_type === 'subject') {
+            if ($subject_id === '' || !ctype_digit($subject_id)) {
+                $errors[] = 'Please select a subject.';
+            } else {
+                $subject_id_db = (int)$subject_id;
+            }
+        } elseif ($target_type === 'faculty') {
+            if ($faculty_id === '' || !ctype_digit($faculty_id)) {
+                $errors[] = 'Please select a faculty member.';
+            } else {
+                $faculty_id_db = (int)$faculty_id;
+            }
+        }
 
-        // Clear POST so refresh doesn't re-submit
-        $_POST = [];
+        if (!$errors) {
+            $stmt = $pdo->prepare(
+                'INSERT INTO feedback
+                  (student_name, student_id, student_email, department, year_of_study, target_type, subject_id, faculty_id, rating, comments)
+                 VALUES
+                  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            $stmt->execute([
+                $student_name,
+                $student_id,
+                $student_email !== '' ? $student_email : null,
+                $department !== '' ? $department : null,
+                $year_of_study !== '' ? $year_of_study : null,
+                $target_type,
+                $subject_id_db,
+                $faculty_id_db,
+                $rating,
+                $comments !== '' ? $comments : null,
+            ]);
+            $ok = true;
+
+            // Clear POST so refresh doesn't re-submit
+            $_POST = [];
+        }
     }
 }
 
+$rightLinks = [];
+if (is_student_logged_in()) {
+    $student = current_student();
+    $label = $student['name'] ?? $student['student_id'] ?? 'Student';
+    $rightLinks[] = '<span class="muted small">Hi, ' . h($label) . '</span>';
+    $rightLinks[] = '<a class="pill" href="/student_logout.php">Student Logout</a>';
+} else {
+    $rightLinks[] = '<a class="pill" href="/student_login.php">Student Login</a>';
+}
+$rightLinks[] = '<a class="pill" href="/admin/login.php">Admin Login</a>';
+
 render_header('Submit Feedback', [
     'subtitle' => 'Student portal',
-    'right' => '<a class="pill" href="/admin/login.php">Admin Login</a>',
+    'right' => implode(' ', $rightLinks),
 ]);
 ?>
 
@@ -115,29 +162,29 @@ render_header('Submit Feedback', [
       <div class="row">
         <div>
           <label for="student_name">Student Name *</label>
-          <input id="student_name" name="student_name" value="<?= h(post('student_name')) ?>" required />
+          <input id="student_name" name="student_name" value="<?= h(student_prefill($currentStudent, 'name', 'student_name')) ?>" required />
         </div>
         <div>
           <label for="student_id">Student ID *</label>
-          <input id="student_id" name="student_id" value="<?= h(post('student_id')) ?>" required />
+          <input id="student_id" name="student_id" value="<?= h(student_prefill($currentStudent, 'student_id', 'student_id')) ?>" required />
         </div>
       </div>
 
       <div class="row">
         <div>
           <label for="student_email">Email (optional)</label>
-          <input id="student_email" name="student_email" value="<?= h(post('student_email')) ?>" />
+          <input id="student_email" name="student_email" value="<?= h(student_prefill($currentStudent, 'email', 'student_email')) ?>" />
         </div>
         <div>
           <label for="department">Department (optional)</label>
-          <input id="department" name="department" value="<?= h(post('department')) ?>" />
+          <input id="department" name="department" value="<?= h(student_prefill($currentStudent, 'department', 'department')) ?>" />
         </div>
       </div>
 
       <div class="row">
         <div>
           <label for="year_of_study">Year of Study (optional)</label>
-          <input id="year_of_study" name="year_of_study" value="<?= h(post('year_of_study')) ?>" placeholder="e.g., 2nd year" />
+          <input id="year_of_study" name="year_of_study" value="<?= h(student_prefill($currentStudent, 'year_of_study', 'year_of_study')) ?>" placeholder="e.g., 2nd year" />
         </div>
         <div>
           <label for="target_type">Feedback For *</label>

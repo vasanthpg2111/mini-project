@@ -15,6 +15,20 @@ CREATE TABLE IF NOT EXISTS admins (
   UNIQUE KEY uniq_admin_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS students (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  student_id VARCHAR(40) NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  email VARCHAR(190) NULL,
+  department VARCHAR(120) NULL,
+  year_of_study VARCHAR(40) NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_student_student_id (student_id),
+  UNIQUE KEY uniq_student_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS subjects (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   name VARCHAR(120) NOT NULL,

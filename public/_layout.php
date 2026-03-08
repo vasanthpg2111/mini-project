@@ -1,9 +1,4 @@
 <?php
-/**
- * Minimal layout helper.
- * Usage: require __DIR__ . '/_layout.php'; render_header('Title'); ... render_footer();
- */
-
 function h(string $v): string
 {
     return htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
